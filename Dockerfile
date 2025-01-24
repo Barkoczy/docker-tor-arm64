@@ -1,32 +1,12 @@
-FROM arm64v8/alpine:3.18
-ENV TOR_VER="0.4.8.13"
+FROM arm64v8/debian:bookworm-slim
 
-RUN addgroup tor && \
-    adduser -D -S -u 1000 -h /opt -G tor tor
+RUN apt-get update && apt-get install -y curl gpg apt-transport-https
+RUN curl https://deb.torproject.org/torproject.org/A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89.asc | gpg --dearmor | tee /usr/share/keyrings/tor-archive-keyring.gpg >/dev/null
+RUN echo "deb [signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org bookworm main" > /etc/apt/sources.list.d/tor.list
 
-RUN apk add -U --virtual deps \
-    gcc g++ make libevent-dev \
-    openssl-dev zlib-dev \
-    linux-headers xz-dev \
-    zstd-dev libcap-dev && \
-    apk add libevent openssl \
-    xz zstd zstd-libs libcap && \
-    cd ~ && \
-    wget https://www.torproject.org/dist/tor-$TOR_VER.tar.gz && \
-    tar xf tor-$TOR_VER.tar.gz && \
-    cd tor-$TOR_VER/ && \
-    ./configure --prefix=/opt/tor \
-    --with-tor-user=tor \
-    --with-tor-group=tor \
-    --with-openssl-dir=/usr && \
-    make -j$(nproc) && \
-    make install && \
-    rm -rf ~/* && \
-    apk del --purge deps && \
-    cp /opt/tor/etc/tor/torrc.sample /opt/tor/etc/tor/torrc && \
-    sed -i 's/#SOCKSPort 9050/SOCKSPort 0.0.0.0:9050/' /opt/tor/etc/tor/torrc && \
-    mkdir -p /opt/tor/var/lib/tor/ && \
-    chown tor:tor -R /opt/*
+RUN apt-get update && apt-get install -y tor
 
-USER tor
-CMD /opt/tor/bin/tor -f /opt/tor/etc/tor/torrc
+RUN sed -i 's/#SOCKSPort 9050/SOCKSPort 0.0.0.0:9050/' /etc/tor/torrc
+
+USER debian-tor
+CMD ["/usr/bin/tor", "-f", "/etc/tor/torrc"]
